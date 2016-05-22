@@ -32,8 +32,8 @@ defmodule Nerves.System.Squashfs do
     GenServer.call(pid, {:pseudofile_fragment, fragment})
   end
 
-  def fragment(pid, fragment, path) do
-    GenServer.call(pid, {:fragment, fragment, path})
+  def fragment(pid, fragment, path, opts \\ []) do
+    GenServer.call(pid, {:fragment, fragment, path, opts})
   end
 
   def files(pid) do
@@ -76,28 +76,38 @@ defmodule Nerves.System.Squashfs do
   end
 
   def handle_call({:pseudofile_fragment, fragment}, from, s) do
-    fragment = Enum.filter(s.params, fn
-      {_, file, _, _, _} -> file in fragment
-    end)
+    fragment =
+      fragment
+      |> Enum.filter(s.params, fn
+        {_, file, _, _, _} ->
+          file in fragment
+      end)
     {:reply, params_to_pseudofile(fragment), s}
   end
 
-  def handle_call({:fragment, fragment, path}, from, s) do
-    fragment
-    |> Enum.map(&Path.dirname/1)
+  def handle_call({:fragment, fragment, path, opts}, from, s) do
+    pseudo_fragment =
+      fragment
+      |> Enum.map(&path_to_paths/1)
+      |> List.flatten
+      |> Enum.uniq
+      |> IO.inspect
 
+    pseudo_fragment = Enum.filter(s.params, fn
+      {_, file, _, _, _} -> file in pseudo_fragment
+    end)
     fragment = Enum.filter(s.params, fn
       {_, file, _, _, _} -> file in fragment
     end)
 
-    pseudofile = params_to_pseudofile(fragment)
+    pseudofile = params_to_pseudofile(pseudo_fragment)
     tmp_dir = Path.dirname(path)
     |> Path.join("tmp")
     File.mkdir_p!(tmp_dir)
-
+    pseudofile_name = opts[:name] || "pseudofile"
     pseudofile_path =
       Path.dirname(path)
-      |> Path.join("pseudofile")
+      |> Path.join(pseudofile_name)
     File.write!(pseudofile_path, pseudofile)
 
     Enum.each(fragment, fn({_, file, _, _, _}) ->
@@ -193,11 +203,11 @@ defmodule Nerves.System.Squashfs do
 
   def path_to_paths(path) do
     path
-    |> Path.dirname
     |> Path.split
     |> Enum.reduce(["/"], fn(p, acc) ->
       [h | _t] = acc
       [Path.join(h, p) | acc]
     end)
+    |> Enum.uniq
   end
 end
