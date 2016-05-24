@@ -7,11 +7,13 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
   @exclude ~w(skeleton toolchain linux toolchain-external)
 
   @moduledoc """
-    Export Nerves System Packages
+    Generate Nerves System Packages
   """
 
   @dir "nerves/system"
   @output_dir File.cwd! |> Path.join("pkg")
+  @switches []
+
   def run(argv) do
     {opts, argv} =
       case OptionParser.parse(argv, strict: @switches) do
@@ -30,8 +32,7 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
     end
   end
 
-  def run(path, opts) do
-
+  def run(path, _opts) do
     Nerves.Env.initialize
     system_path =
       Mix.Project.build_path
@@ -58,10 +59,10 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
     Application.ensure_started(toolchain)
     tuple = Application.get_env(toolchain, :target_tuple)
 
-    gen_pkgs(rootfs, pkg_manifests, tuple)
+    gen_pkgs(rootfs, pkg_manifests, tuple, path)
   end
 
-  def gen_pkgs(rootfs, pkg_manifests, tuple) do
+  def gen_pkgs(rootfs, pkg_manifests, tuple, path) do
     {:ok, pid} = Squashfs.start_link(rootfs)
     {rejected_pkgs, pkgs} =
       File.ls!(pkg_manifests)
@@ -82,8 +83,8 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
         end
       end)
     pkgs
-      |> Enum.map(& gen_fs(&1, pid, tuple))
-      |> Enum.each(& gen_pkg(&1, tuple))
+      |> Enum.map(& gen_fs(&1, pid, tuple, path))
+      |> Enum.each(& gen_pkg(&1, tuple, path))
 
     Squashfs.stop(pid)
 
@@ -103,9 +104,23 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
       """
       Mix.shell.info([IO.ANSI.yellow, output, IO.ANSI.reset])
     end
+    gen_pkgs =
+      pkgs
+      |> Enum.map(fn(manifest) ->
+        """
+        #{manifest[:name]}-#{manifest[:version]}
+        """
+      end)
+    output = """
+
+    Generated Packages
+    -----------------
+    #{Enum.join(gen_pkgs, "")}
+    """
+    Mix.shell.info([IO.ANSI.green, output, IO.ANSI.reset])
   end
 
-  def gen_fs(manifest, pid, tuple) do
+  def gen_fs(manifest, pid, tuple, path) do
     system_files = Squashfs.files(pid)
     files = manifest[:files] || []
 
@@ -117,15 +132,13 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
       end)
 
     fs_path =
-      File.cwd!
-      |> Path.join("pkg")
+      path
       |> Path.join("#{name}-#{tuple}.squashfs")
 
-    Squashfs.fragment(pid, target, fs_path, name: "#{name}-pseudofile")
+    Squashfs.fragment(pid, target, fs_path, name: "#{name}-#{tuple}.pseudofile")
 
     staging_dest_path =
-      File.cwd!
-      |> Path.join("pkg")
+      path
       |> Path.join("#{name}-staging")
 
     staging_src_path =
@@ -148,22 +161,21 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
             acc
         end
       end)
-    if staging != [] do
-      staging_tar =
-        File.cwd!
-        |> Path.join("pkg")
-        |> Path.join("#{name}-#{tuple}.staging.tar.gz")
-        |> String.to_char_list
-      :erl_tar.create(staging_tar, staging_file_list, [:compressed])
-    end
-
-
+    staging_tar =
+      if staging != [] do
+        tar =
+          path
+          |> Path.join("#{name}-#{tuple}.staging.tar.gz")
+          |> String.to_char_list
+        :erl_tar.create(tar, staging_file_list, [:compressed])
+        tar
+      end
     manifest
     |> Keyword.put(:fs_overlay, fs_path)
     |> Keyword.put(:staging_overlay, staging_tar)
   end
 
-  def gen_pkg(manifest, tuple) do
+  def gen_pkg(manifest, tuple, path) do
 
     deps =
       Keyword.get(manifest, :dependencies, [])
@@ -175,11 +187,9 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
 
     version = parse_version(manifest[:version])
 
-    name = String.replace(manifest[:name], "-", "_")
     path =
-      File.cwd!
-      |> Path.join("pkg")
-      |> Path.join(name)
+      path
+      |> Path.join(manifest[:name])
     Mix.Task.reenable "nerves.system.pkg.new"
     Mix.Task.run "nerves.system.pkg.new", [path, "--version", version] ++ deps ++ licenses
   end
@@ -198,6 +208,7 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
     |> parse_manifest_lines
     |> parse_manifest_vsn
     |> parse_manifest_deps
+    |> normalize
   end
 
   defp parse_manifest_lines(_, _ \\ [])
@@ -296,6 +307,10 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
       |> Enum.reverse
       |> List.to_tuple
     {String.replace(dep, "-", "_"), convert_vsn(vsn)}
+  end
+
+  defp normalize(manifest) do
+    Keyword.put(manifest, :name, String.replace(manifest[:name], "-", "_"))
   end
 
   defp switch_to_string({name, nil}), do: name
