@@ -65,10 +65,7 @@ defmodule Mix.Tasks.Nerves.System.Pkg.New do
     |> Keyword.get_values(:dep)
     |> Enum.map(fn(dep) ->
       dep
-      |> String.reverse
       |> String.split("-", parts: 2)
-      |> Enum.map(&String.reverse/1)
-      |> Enum.reverse
       |> List.to_tuple
     end)
   end

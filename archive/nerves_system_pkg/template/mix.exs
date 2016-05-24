@@ -1,4 +1,4 @@
-defmodule <%= application_module %>.Mixfile do
+defmodule Nerves.Pkg.<%= application_module %>.Mixfile do
   use Mix.Project
 
   @version Path.join(__DIR__, "VERSION")
@@ -19,7 +19,7 @@ defmodule <%= application_module %>.Mixfile do
   end
 
   def deps do
-    [<%= for {dep, vsn} <- application_deps do %>{:<%= dep %>, "~> <%= vsn %>"},<% end %>]
+    [<%= for {dep, vsn} <- application_deps do %>{:nerves_pkg_<%= dep %>, "~> <%= vsn %>"},<% end %>]
   end
 
   defp description do

@@ -5,7 +5,6 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
   alias Nerves.System.Squashfs
 
   @exclude ~w(skeleton toolchain linux toolchain-external)
-  @deps_exclude ~w(skeleton-undefined toolchain-virtual)
 
   @moduledoc """
     Export Nerves System Packages
@@ -68,7 +67,6 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
       File.ls!(pkg_manifests)
       |> Enum.map(&manifest_path/1)
       |> Enum.map(&parse_manifest/1)
-      |> Enum.map(&parse_manifest_vsn/1)
       |> Enum.reduce({[], []}, fn(manifest, {r, k}) ->
         cond do
           (manifest[:name] in @exclude) ->
@@ -77,11 +75,13 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
             {[{manifest, "No Filesystem"} | r], k}
           (Version.parse(manifest[:version]) == :error) ->
             {[{manifest, "Incompatable version: #{manifest[:version]}"} | r], k}
+          (Enum.any?(manifest[:dependencies], fn({dep, vsn}) ->
+            Version.parse(vsn) == :error
+          end)) -> {[{manifest, "Incompatable dependency version: #{inspect manifest[:dependencies]}"} | r], k}
           true -> {r, [manifest | k]}
         end
       end)
     pkgs
-      |> Enum.map(&clean_deps/1)
       |> Enum.map(& gen_fs(&1, pid, tuple))
       |> Enum.each(& gen_pkg(&1, tuple))
 
@@ -103,14 +103,6 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
       """
       Mix.shell.info([IO.ANSI.yellow, output, IO.ANSI.reset])
     end
-  end
-
-  def clean_deps(manifest) do
-    deps =
-      (manifest[:dependencies] || [])
-      |> Enum.reject(& &1 in @deps_exclude)
-      |> Enum.reject(& String.starts_with?(&1, "host-"))
-    Keyword.put(manifest, :dependencies, deps)
   end
 
   def gen_fs(manifest, pid, tuple) do
@@ -175,7 +167,7 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
 
     deps =
       Keyword.get(manifest, :dependencies, [])
-      |> Enum.flat_map(&["--dep", String.replace(&1, "-", "_")])
+      |> Enum.flat_map(fn({dep, vsn}) -> ["--dep", "#{dep}-#{vsn}"] end)
 
     licenses =
       Keyword.get(manifest, :license, [])
@@ -204,6 +196,8 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
     File.read!(manifest)
     |> String.split("\n")
     |> parse_manifest_lines
+    |> parse_manifest_vsn
+    |> parse_manifest_deps
   end
 
   defp parse_manifest_lines(_, _ \\ [])
@@ -276,10 +270,34 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
         ["#{int}-#{rest}" | t]
         |> Enum.reverse
         |> Enum.join(".")
-      _ -> vsn
+      _ ->
+        vsn
+        |> Enum.reverse
+        |> Enum.join(".")
     end
   end
   defp convert_vsn(vsn), do: vsn
+
+  defp parse_manifest_deps(manifest) do
+    deps =
+      (manifest[:dependencies] || [])
+      |> Enum.reject(& String.starts_with?(&1, "host-"))
+      |> Enum.map(&convert_dep/1)
+      |> Enum.reject(fn({dep, vsn}) -> dep in @exclude or vsn == "virtual" end)
+    Keyword.put(manifest, :dependencies, deps)
+  end
+
+  defp convert_dep(dep) do
+    {dep, vsn} =
+      dep
+      |> String.reverse
+      |> String.split("-", parts: 2)
+      |> Enum.map(&String.reverse/1)
+      |> Enum.reverse
+      |> List.to_tuple
+    {String.replace(dep, "-", "_"), convert_vsn(vsn)}
+  end
+
   defp switch_to_string({name, nil}), do: name
   defp switch_to_string({name, val}), do: name <> "=" <> val
 end
