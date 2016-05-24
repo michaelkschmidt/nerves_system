@@ -4,7 +4,7 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
 
   alias Nerves.System.Squashfs
 
-  @exclude ~w(skeleton toolchain linux)
+  @exclude ~w(skeleton toolchain linux toolchain-external)
   @deps_exclude ~w(skeleton-undefined toolchain-virtual)
 
   @moduledoc """
@@ -12,8 +12,27 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
   """
 
   @dir "nerves/system"
+  @output_dir File.cwd! |> Path.join("pkg")
+  def run(argv) do
+    {opts, argv} =
+      case OptionParser.parse(argv, strict: @switches) do
+        {opts, argv, []} ->
+          {opts, argv}
+        {_opts, _argv, [switch | _]} ->
+          Mix.raise "Invalid option: " <> switch_to_string(switch)
+      end
+    case argv do
+      [] ->
+        Mix.Task.run "help", ["nerves.system.gen.pkg"]
+      [path|_] ->
+        File.rm_rf(path)
+        File.mkdir_p(path)
+        run(path, opts)
+    end
+  end
 
-  def run(_args) do
+  def run(path, opts) do
+
     Nerves.Env.initialize
     system_path =
       Mix.Project.build_path
@@ -39,22 +58,51 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
     toolchain = Nerves.Env.toolchain.app
     Application.ensure_started(toolchain)
     tuple = Application.get_env(toolchain, :target_tuple)
-    |> IO.inspect
 
     gen_pkgs(rootfs, pkg_manifests, tuple)
   end
 
   def gen_pkgs(rootfs, pkg_manifests, tuple) do
     {:ok, pid} = Squashfs.start_link(rootfs)
+    {rejected_pkgs, pkgs} =
       File.ls!(pkg_manifests)
-      |> Enum.filter(& !&1 in @exclude)
       |> Enum.map(&manifest_path/1)
       |> Enum.map(&parse_manifest/1)
-      |> Enum.filter(& Keyword.get(&1, :files, []) != [])
+      |> Enum.map(&parse_manifest_vsn/1)
+      |> Enum.reduce({[], []}, fn(manifest, {r, k}) ->
+        cond do
+          (manifest[:name] in @exclude) ->
+            {[{manifest, "Excluded"} | r], k}
+          (Keyword.get(manifest, :files, []) == []) ->
+            {[{manifest, "No Filesystem"} | r], k}
+          (Version.parse(manifest[:version]) == :error) ->
+            {[{manifest, "Incompatable version: #{manifest[:version]}"} | r], k}
+          true -> {r, [manifest | k]}
+        end
+      end)
+    pkgs
       |> Enum.map(&clean_deps/1)
       |> Enum.map(& gen_fs(&1, pid, tuple))
-      |> Enum.map(& gen_pkg(&1, tuple))
+      |> Enum.each(& gen_pkg(&1, tuple))
+
     Squashfs.stop(pid)
+
+    rejected_pkgs =
+      rejected_pkgs
+      |> Enum.map(fn({manifest, reason}) ->
+        """
+        #{manifest[:name]} rejected for reason: #{reason}
+        """
+      end)
+    if rejected_pkgs != [] do
+      output = """
+
+      Rejected Packages
+      -----------------
+      #{Enum.join(rejected_pkgs, "")}
+      """
+      Mix.shell.info([IO.ANSI.yellow, output, IO.ANSI.reset])
+    end
   end
 
   def clean_deps(manifest) do
@@ -62,14 +110,6 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
       (manifest[:dependencies] || [])
       |> Enum.reject(& &1 in @deps_exclude)
       |> Enum.reject(& String.starts_with?(&1, "host-"))
-      |> Enum.map(fn(dep) ->
-        dep
-        |> String.reverse
-        |> String.split("-", parts: 2)
-        |> Enum.map(&String.reverse/1)
-        |> Enum.reverse
-        |> List.to_tuple
-      end)
     Keyword.put(manifest, :dependencies, deps)
   end
 
@@ -132,7 +172,24 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
   end
 
   def gen_pkg(manifest, tuple) do
-    #IO.inspect manifest
+
+    deps =
+      Keyword.get(manifest, :dependencies, [])
+      |> Enum.flat_map(&["--dep", String.replace(&1, "-", "_")])
+
+    licenses =
+      Keyword.get(manifest, :license, [])
+      |> Enum.flat_map(&["--license", &1])
+
+    version = parse_version(manifest[:version])
+
+    name = String.replace(manifest[:name], "-", "_")
+    path =
+      File.cwd!
+      |> Path.join("pkg")
+      |> Path.join(name)
+    Mix.Task.reenable "nerves.system.pkg.new"
+    Mix.Task.run "nerves.system.pkg.new", [path, "--version", version] ++ deps ++ licenses
   end
 
   def manifest_path(manifest) do
@@ -163,6 +220,9 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
     parse_manifest_lines(tail, collection)
   end
 
+
+  defp parse_version(vsn), do: vsn
+
   defp update_manifest_collection(:installed, <<".", file :: binary>>, collection) do
     files = Keyword.get(collection, :files, [])
     Keyword.put(collection, :files, [file | files])
@@ -188,4 +248,38 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
     Keyword.put(collection, key, String.strip(value))
   end
 
+  defp parse_manifest_vsn(manifest) do
+    vsn =
+      manifest[:version]
+      |> convert_vsn
+    Keyword.put(manifest, :version, vsn)
+  end
+
+  defp convert_vsn(<<"v", vsn :: binary>>), do: convert_vsn(vsn)
+  defp convert_vsn(vsn) when is_binary(vsn) do
+    case Version.parse(vsn) do
+      {:ok, _} -> vsn
+      _ ->
+        String.split(vsn, ".")
+        |> convert_vsn
+    end
+  end
+
+  defp convert_vsn([binary]), do: binary
+  defp convert_vsn([m | [mi | []]]), do: "#{m}.#{mi}.0"
+  defp convert_vsn([_ | [_ | [_ | []]]] = vsn) do
+    [h | t] = Enum.reverse(vsn)
+    case Integer.parse(h) do
+      {int, ""} ->
+        ["#{int}" | t]
+      {int, rest} ->
+        ["#{int}-#{rest}" | t]
+        |> Enum.reverse
+        |> Enum.join(".")
+      _ -> vsn
+    end
+  end
+  defp convert_vsn(vsn), do: vsn
+  defp switch_to_string({name, nil}), do: name
+  defp switch_to_string({name, val}), do: name <> "=" <> val
 end

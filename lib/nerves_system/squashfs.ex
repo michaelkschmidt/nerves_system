@@ -91,7 +91,6 @@ defmodule Nerves.System.Squashfs do
       |> Enum.map(&path_to_paths/1)
       |> List.flatten
       |> Enum.uniq
-      |> IO.inspect
 
     pseudo_fragment = Enum.filter(s.params, fn
       {_, file, _, _, _} -> file in pseudo_fragment
