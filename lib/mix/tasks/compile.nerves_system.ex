@@ -41,7 +41,7 @@ defmodule Mix.Tasks.Compile.NervesSystem do
     version = config[:version]
 
     clean(build_path)
-
+    IO.inspect Env.system
     system_config = Env.system.config
     provider = system_config[:provider]
     cache_provider = provider[:cache] || default_provider(:cache)

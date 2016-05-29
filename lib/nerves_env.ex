@@ -10,7 +10,7 @@ defmodule Nerves.Env do
     @type t :: %__MODULE__{app: atom,
                           path: binary,
                           type: :system |
-                                :system_ext |
+                                :system_pkg |
                                 :system_compiler |
                                 :toolchain |
                                 :toolchain_compiler,
@@ -52,7 +52,7 @@ defmodule Nerves.Env do
       |> Path.expand
 
     if stale_check_manifest(system_manifest) do
-      [system | system_exts]
+      [system]
       |> Enum.map(fn (%{path: path, config: config}) ->
         (config[:package_files] || @default_files)
         |> expand_paths(path)
@@ -83,8 +83,8 @@ defmodule Nerves.Env do
     system.config[:build_platform]
   end
 
-  def system_exts do
-    deps_by_type(:system_ext)
+  def system_pkgs do
+    deps_by_type(:system_pkg)
   end
 
   def toolchain do

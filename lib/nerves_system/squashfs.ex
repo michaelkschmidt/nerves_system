@@ -10,10 +10,13 @@ defmodule Nerves.System.Squashfs do
 
   def start_link(rootfs) do
     params = unsquashfs(rootfs)
-    dir = Path.dirname(rootfs)
-    case System.cmd("unsquashfs", [rootfs]) do
-      {result, 0} ->
-        GenServer.start_link(__MODULE__, [rootfs, params])
+    dir =
+      Path.dirname(rootfs)
+      |> Path.join("squashfs")
+
+    case System.cmd("unsquashfs", [rootfs, "-d", dir]) do
+      {_result, 0} ->
+        GenServer.start_link(__MODULE__, [rootfs, dir, params])
       {error, _} = reply ->
         {:error, error}
     end
@@ -40,7 +43,11 @@ defmodule Nerves.System.Squashfs do
     GenServer.call(pid, {:files})
   end
 
-  def unsquashfs(rootfs) do
+  def merge(pid, file_systems, pseudofiles, path) do
+    GenServer.call(pid, {:mergefs, file_systems, pseudofiles, path})
+  end
+
+  defp unsquashfs(rootfs) do
     case System.cmd("unsquashfs", ["-n", "-ll", rootfs]) do
       {result, 0} ->
         String.split(result, "\n")
@@ -49,12 +56,12 @@ defmodule Nerves.System.Squashfs do
     end
   end
 
-  def init([rootfs, params]) do
+  def init([rootfs, stage, params]) do
 
     {:ok, %{
       rootfs: rootfs,
       params: params,
-      stage: Path.join(File.cwd!, "squashfs-root")
+      stage: stage
     }}
   end
 
@@ -119,6 +126,32 @@ defmodule Nerves.System.Squashfs do
     IO.puts path
     System.cmd("mksquashfs", [tmp_dir, path, "-pf", pseudofile_path, "-noappend", "-no-recovery", "-no-progress"])
     File.rm_rf!(tmp_dir)
+    #File.rm!(pseudofile_path)
+
+    {:reply, {:ok, path}, s}
+  end
+
+  def handle_call({:mergefs, file_systems, pseudofiles, path}, from, s) do
+
+    stage_path =
+      s.stage
+      |> Path.dirname
+
+    unionfs = Path.join(union_path, "union")
+    Enum.each(fs, fn() ->
+      System.cmd("unsquashfs", ["-d", s.stage, "-f", fs])
+    end)
+
+    pseudofile = Enum.reduce(pseudofiles, "", fn(file, acc) ->
+      File.read!(file) <> acc <> "\n"
+    end)
+    pseudofile <> "\n" <> params_to_pseudofile(s.params)
+
+    pseudofile_path = Path.join(stage_path, "pseudofile")
+    File.write!(pseudofile_path, pseudofile)
+
+    System.cmd("mksquashfs", [ststage, path, "-pf", pseudofile_path, "-noappend", "-no-recovery", "-no-progress"])
+
     #File.rm!(pseudofile_path)
 
     {:reply, {:ok, path}, s}

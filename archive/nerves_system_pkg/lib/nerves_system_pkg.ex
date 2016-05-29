@@ -21,7 +21,7 @@ defmodule Mix.Tasks.Nerves.System.Pkg.New do
     end
   end
 
-  @switches [version: :string, dep: :keep, license: :keep]
+  @switches [version: :string, dep: :keep, license: :keep, license: :keep]
   def run(argv) do
     {opts, argv} =
       case OptionParser.parse(argv, strict: @switches) do

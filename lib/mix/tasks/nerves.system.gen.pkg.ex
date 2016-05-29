@@ -58,7 +58,7 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
     toolchain = Nerves.Env.toolchain.app
     Application.ensure_started(toolchain)
     tuple = Application.get_env(toolchain, :target_tuple)
-
+    
     gen_pkgs(rootfs, pkg_manifests, tuple, path)
   end
 
@@ -125,6 +125,7 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
     files = manifest[:files] || []
 
     name = manifest[:name]
+    version = manifest[:version]
     {target, staging} =
       files
       |> Enum.partition(fn(file) ->
@@ -133,9 +134,9 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
 
     fs_path =
       path
-      |> Path.join("#{name}-#{tuple}.squashfs")
+      |> Path.join("#{name}-#{version}-#{tuple}.squashfs")
 
-    Squashfs.fragment(pid, target, fs_path, name: "#{name}-#{tuple}.pseudofile")
+    Squashfs.fragment(pid, target, fs_path, name: "#{name}-#{version}-#{tuple}.pseudofile")
 
     staging_dest_path =
       path
@@ -165,7 +166,7 @@ defmodule Mix.Tasks.Nerves.System.Gen.Pkg do
       if staging != [] do
         tar =
           path
-          |> Path.join("#{name}-#{tuple}.staging.tar.gz")
+          |> Path.join("#{name}-#{version}-#{tuple}.staging.tar.gz")
           |> String.to_char_list
         :erl_tar.create(tar, staging_file_list, [:compressed])
         tar
