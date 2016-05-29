@@ -13,12 +13,7 @@ defmodule Nerves.System.Mixfile do
   @cache      System.get_env("NERVES_SYSTEM_CACHE")    || default_cache
   @compiler   System.get_env("NERVES_SYSTEM_COMPILER") || default_compiler
 
-  providers = [@cache, @compiler]
-  |> Enum.map(&String.to_atom/1)
-  |> Enum.uniq
-
-  @providers providers
-
+  # TODO: Set these somewhere else
   System.put_env("NERVES_SYSTEM_CACHE", @cache)
   System.put_env("NERVES_SYSTEM_COMPILER", @compiler)
 
@@ -36,23 +31,8 @@ defmodule Nerves.System.Mixfile do
   end
 
   defp deps do
-    if System.get_env("HEX") != nil do
-      provider(:http) ++ provider(:local)
-    else
-      Enum.reduce(@providers, [], fn(provider, acc) -> acc ++ provider(provider) end)
-    end
-  end
-
-  defp provider(:http) do
-    [{:httpoison, "~> 0.8.3"}]
-  end
-
-  defp provider(:local) do
-    [{:porcelain, "~> 2.0"}]
-  end
-
-  defp provider(_) do
-    []
+    [{:httpoison, "~> 0.8.3"},
+     {:porcelain, "~> 2.0"}]
   end
 
   defp description do
