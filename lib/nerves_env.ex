@@ -266,8 +266,14 @@ defmodule Nerves.Env do
   end
 
   defp system_path do
-    Mix.Project.build_path
-    |> Path.join("nerves/system")
+    case System.get_env("NERVES_SYSTEM_CACHE") do
+      "local" ->
+        Nerves.System.Providers.Local.system_cache_dir
+      _ ->
+        Mix.Project.build_path
+        |> Path.join("nerves/system")
+    end
+
   end
 
 end

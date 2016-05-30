@@ -11,8 +11,8 @@ defmodule Nerves.System.Providers.Local do
 
   def cache_get(system, version, config, _dest) do
     shell_info "Checking Cache for #{system}-#{version}"
-    cache_dir =
-      System.get_env("NERVES_SYSTEM_CACHE_DIR") || Path.expand(@system_cache)
+    cache_dir = system_cache_dir
+
     system_path =
       cache_dir
       |> Path.join("#{system}-#{version}")
@@ -92,5 +92,9 @@ defmodule Nerves.System.Providers.Local do
 
   defp shell_info(text) do
     Provider.shell_info "[local] #{text}"
+  end
+
+  def system_cache_dir do
+    System.get_env("NERVES_SYSTEM_CACHE_DIR") || Path.expand(@system_cache)
   end
 end
