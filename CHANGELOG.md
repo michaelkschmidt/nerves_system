@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.4
+  * Bug Fixes
+    * Resolve local cache dir when Env bootstrap called form loadpaths. Fixes subsequent calls to `mix firmware`
+
 ## v0.1.3
   * Enhancements
     * Added option to use local cache provider. See https://hexdocs.pm/nerves/systems.html#building-nerves-systems for more information.
