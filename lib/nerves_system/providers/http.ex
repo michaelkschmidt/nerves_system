@@ -16,7 +16,10 @@ defmodule Nerves.System.Providers.Http do
   end
 
   defp get([mirror | mirrors]) do
-    HTTPoison.get(mirror, [], [follow_redirect: true, recv_timeout: @recv_timeout])
+    mirror
+    |> URI.encode
+    |> String.replace("+", "%2B")
+    |> HTTPoison.get([], [follow_redirect: true, recv_timeout: @recv_timeout])
     |> result(mirrors)
   end
 
