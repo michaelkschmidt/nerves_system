@@ -4,7 +4,6 @@ defmodule Nerves.System.Providers.Http do
   @recv_timeout 120_000
 
   def cache_get(_system, _version, config, destination) do
-    Application.ensure_all_started(:httpoison)
     shell_info "Downloading system from cache"
     config[:mirrors]
     |> get
@@ -19,11 +18,11 @@ defmodule Nerves.System.Providers.Http do
     mirror
     |> URI.encode
     |> String.replace("+", "%2B")
-    |> HTTPoison.get([], [follow_redirect: true, recv_timeout: @recv_timeout])
+    |> Mix.Utils.read_path()
     |> result(mirrors)
   end
 
-  defp result({:ok, %{status_code: status, body: body}}, _) when status in 200..299 do
+  defp result({:ok, body}, _) do
     shell_info "System Downloaded"
     {:ok, body}
   end
