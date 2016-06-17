@@ -31,8 +31,7 @@ defmodule Nerves.System.Mixfile do
   end
 
   defp deps do
-    [{:httpoison, "~> 0.8.3"},
-     {:porcelain, "~> 2.0"}]
+    [{:porcelain, "~> 2.0"}]
   end
 
   defp description do
