@@ -4,7 +4,7 @@ defmodule Nerves.System.Providers.Http do
   @recv_timeout 120_000
 
   def cache_get(_system, _version, config, destination) do
-    shell_info "Downloading system from cache"
+    shell_info "Downloading System"
     config[:mirrors]
     |> get
     |> unpack(destination)
@@ -27,11 +27,11 @@ defmodule Nerves.System.Providers.Http do
     {:ok, body}
   end
   defp result(_, []) do
-    shell_info "No Available Mirrors"
+    shell_info "No Available Locations"
     {:error, :nocache}
   end
   defp result(_, mirrors) do
-    shell_info "switching mirror"
+    shell_info "Switching Location"
     get(mirrors)
   end
 
