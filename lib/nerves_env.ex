@@ -249,6 +249,7 @@ defmodule Nerves.Env do
   ERL_INTERFACE_LIB_DIR="$ERL_INTERFACE_DIR/lib"
   ERL_INTERFACE_INCLUDE_DIR="$ERL_INTERFACE_DIR/include"
   """
+  require Logger
   def bootstrap do
     [{"NERVES_SYSTEM", System.get_env("NERVES_SYSTEM") || system_path},
      {"NERVES_TOOLCHAIN", System.get_env("NERVES_TOOLCHAIN") || toolchain_path},
@@ -269,6 +270,7 @@ defmodule Nerves.Env do
     case System.get_env("NERVES_SYSTEM_CACHE") do
       "local" ->
         Nerves.System.Providers.Local.system_cache_dir
+        |> Path.join("#{Env.system.app}-#{Env.system.config[:version]}")
       _ ->
         Mix.Project.build_path
         |> Path.join("nerves/system")

@@ -48,25 +48,13 @@ defmodule Mix.Tasks.Compile.NervesSystem do
 
     cache_provider = Module.concat(Nerves.System.Providers, String.capitalize(cache_provider))
 
-    # determine if we can cache anyways
-    #  1. do we have any system extensions?
-    system_exts = Env.system_exts
-    if system_exts != [] do
-      system_exts = Enum.map(system_exts, &(Map.get(&1, :app)))
-      Logger.debug "Exts: #{inspect system_exts}"
-      Mix.shell.info """
-      System Extensions Present: #{Enum.join(system_exts, ~s/ /)}
-      Skipping cache provider
-      """
-      compile(app, build_path, system_config)
-    else
-      cache_resp = cache_provider.cache_get(app, version, system_config, build_path)
-      case cache_resp do
-        {:ok, _} -> :ok
-        {:error, :nocache} -> compile(app, build_path, system_config)
-        {:error, error} -> cache_error(error)
-      end
+    cache_resp = cache_provider.cache_get(app, version, system_config, build_path)
+    case cache_resp do
+      {:ok, _} -> :ok
+      {:error, :nocache} -> compile(app, build_path, system_config)
+      {:error, error} -> cache_error(error)
     end
+    
     manifest =
       Env.deps
       |> :erlang.term_to_binary
