@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.5
+  * Bug Fixes
+    * URL encode for downloading S3 assets
+    * Ability to use prerelease in nerves_system_*
+    * Removed dependency on HTTPoison / hackney
+    * Support for downloading through proxies
+
 ## v0.1.4
   * Bug Fixes
     * Resolve local cache dir when Env bootstrap called form loadpaths. Fixes subsequent calls to `mix firmware`
