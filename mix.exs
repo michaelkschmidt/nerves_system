@@ -19,7 +19,7 @@ defmodule Nerves.System.Mixfile do
 
   def project do
     [app: :nerves_system,
-     version: "0.1.5",
+     version: "0.1.6-dev",
      elixir: "~> 1.2",
      description: description,
      package: package,

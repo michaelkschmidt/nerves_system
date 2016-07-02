@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.6-dev
+  * Bug Fixes
+    * Set compile.nerves_system to recursive for umbrella projects
+
 ## v0.1.5
   * Bug Fixes
     * URL encode for downloading S3 assets

@@ -8,8 +8,8 @@ defmodule Mix.Tasks.Compile.NervesSystem do
   """
 
   @dir "nerves/system"
-
   @shortdoc "Nerves Build System"
+  @recursive true
 
   def run(_args) do
     if System.get_env("NERVES_SYSTEM_BUILT") == nil do
@@ -54,7 +54,7 @@ defmodule Mix.Tasks.Compile.NervesSystem do
       {:error, :nocache} -> compile(app, build_path, system_config)
       {:error, error} -> cache_error(error)
     end
-    
+
     manifest =
       Env.deps
       |> :erlang.term_to_binary
