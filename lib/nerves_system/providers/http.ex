@@ -43,7 +43,7 @@ defmodule Nerves.System.Providers.Http do
     tar_file = Path.join(tmp_path, "system.tar.xz")
     File.write(tar_file, tar)
 
-    System.cmd("tar", ["xf", "system.tar.xz"], cd: tmp_path)
+    extract_archive("system.tar.xz",tmp_path)
     source =
       File.ls!(tmp_path)
       |> Enum.map(& Path.join(tmp_path, &1))
@@ -54,6 +54,22 @@ defmodule Nerves.System.Providers.Http do
     File.rm_rf!(tmp_path)
     {:ok, destination}
   end
+
+  defp extract_archive(tar_file,tmp_dir) do
+    {_,os_type} = :os.type
+    extract_archive(os_type,tar_file,tmp_dir)
+  end
+
+  defp extract_archive(:nt,tarxz_file,tmp_dir) do
+    System.cmd("7z", ["x", tarxz_file], cd: tmp_dir)
+    tar_file = String.replace_suffix(tarxz_file,".xz","")
+    System.cmd("7z", ["x", tar_file], cd: tmp_dir)
+  end
+
+  defp extract_archive(_,tar_file,tmp_dir) do
+    System.cmd("tar", ["xf", tar_file], cd: tmp_dir)
+  end
+
 
   defp shell_info(text) do
     Provider.shell_info "[http] #{text}"
